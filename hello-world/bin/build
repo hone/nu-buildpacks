@@ -1,0 +1,46 @@
+#!/usr/bin/env -S nu
+
+def main [layers_dir, platform_dir, plan_path] {
+  print "----> Ruby Buildpack"
+
+  let ruby_layer_dir = $layers_dir | path join "ruby"
+  mkdir $ruby_layer_dir
+
+  # Download Ruby
+  let version = open $plan_path | get entries | filter {|x| $x.name == "ruby"} | get metadata.version.0
+  print $"----> Downloading and extracting Ruby ($version)"
+  http get $"https://s3-external-1.amazonaws.com/heroku-buildpack-ruby/heroku-22/ruby-($version).tgz" | ^tar -xzf - -C $ruby_layer_dir
+
+  # Make Ruby available during launch
+  {types: {launch: true metadata: $version}} | save -f $"($ruby_layer_dir).toml"
+
+  # Make Ruby available in this script
+  $env.PATH = ($env.PATH | split row (char esep) | append ($ruby_layer_dir | path join "bin"))
+  if $env.LD_LIBRARY_PATH? == null {
+    $env.LD_LIBRARY_PATH = ($ruby_layer_dir | path join "lib")
+  } else {
+    $env.LD_LIBRARY_PATH = ($env.LD_LIBRARY_PATH | split row (char esep) | append ($ruby_layer_dir | path join "lib"))
+  }
+
+  # Install Gems
+  let bundler_layer_dir = $layers_dir | path join "bundler"
+  let local_bundler_checksum = ^sha256sum Gemfile.lock | split column '  ' checksum file | get checksum
+  if ($"($bundler_layer_dir).toml" | path exists) {
+    let remote_checksum = open $"($bundler_layer_dir).toml" | get types?.metadata?
+    print "----> Reusing gems"
+    ^bundle config --local path $bundler_layer_dir | null
+    ^bundle config --local bin $"($bundler_layer_dir)/bin" | null
+  } else {
+    print "----> Installing gems"
+    mkdir $bundler_layer_dir
+    {types: {cache: true launch: true metadata: "$local_bundler_checksum"}} | save -f $"($bundler_layer_dir).toml"
+  }
+
+  ^bundle install --path $bundler_layer_dir --binstubs $"($bundler_layer_dir)/bin"
+
+  # Set Default Start Command
+  {processes: [
+    {type: web command: [bundle exec ruby app.rb]}
+    {type: worker command: [bundle exec ruby worker.rb]}
+  ]} | save ($layers_dir | path join "launch.toml")
+}

@@ -1,0 +1,17 @@
+# Buildpack API version
+api = "0.9"
+
+# Buildpack ID and metadata
+[buildpack]
+id = "samples/ruby-bundler"
+version = "0.0.1"
+name = "Sample Ruby Buildpack"
+homepage = "https://github.com/buildpacks/samples/tree/main/buildpacks/ruby-bundler"
+
+# Targets the buildpack will work with
+[[targets]]
+os = "linux"
+
+# Stacks (deprecated) the buildpack will work with
+[[stacks]]
+id = "*"

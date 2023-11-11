@@ -1,0 +1,20 @@
+#!/usr/bin/env -S nu
+
+def main [platform_dir build_plan_path] {
+  # check if applicable
+  if not ('Gemfile' | path exists) {
+    exit 100
+  }
+
+  # get configuration
+  mut version = '3.1.3'
+  if ('.ruby-version' | path exists) {
+    open '.ruby-version' | str trim -r
+  }
+
+  # declare dependencies
+  {
+    provides: [{name: ruby}]
+    requires: [{name: ruby metadata: {version: $version}}]
+  } | to toml | save -f $build_plan_path
+}
